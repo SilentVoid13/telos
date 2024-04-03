@@ -26,7 +26,6 @@ pub fn divide_and_conquer(ballot_box: &Vec<u32>, left: usize, right: usize) -> O
     let middle = (left + right) / 2;
     let left_majority = divide_and_conquer(ballot_box, left, middle);
     let right_majority = divide_and_conquer(ballot_box, middle, right);
-    println!("{:?} {:?}", left_majority, right_majority);
 
     if left_majority.is_none() && right_majority.is_none() {
         return None;
