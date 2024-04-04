@@ -10,21 +10,28 @@ pub struct Graph {
     pub edges: Vec<Edge>,
 }
 
+impl Graph {
+    pub fn neighbours(&self, node: NodeId) -> Vec<NodeId> {
+        self.edges
+            .iter()
+            .filter(|(from, _)| *from == node)
+            .map(|(_, to)| *to)
+            .collect()
+    }
+}
+
 /// Naive Recursive Depth First Search
 /// This doesn't support bidirectional nodes (infinite recursion)
-/// It is best suited for traversing structures like binary trees
+/// It is best suited for traversing tree-like structures
 pub fn depth_first_search_rec(
     graph: &Graph,
     path: &mut Vec<NodeId>,
     cur_node_id: NodeId,
     target: &Node,
 ) -> Option<NodeId> {
-    if !path.contains(&cur_node_id) {
-        path.push(cur_node_id);
-    }
-
-    let root = &graph.nodes[cur_node_id];
-    if root.0 == target.0 {
+    let cur_node = &graph.nodes[cur_node_id];
+    path.push(cur_node.0);
+    if cur_node.0 == target.0 {
         return Some(cur_node_id);
     }
 
@@ -46,10 +53,12 @@ pub fn depth_first_search_it(
     let mut visited = HashSet::new();
     let mut queue = VecDeque::new();
     queue.push_back(root_id);
+    visited.insert(root_id);
 
     while let Some(node_id) = queue.pop_front() {
-        path.push(node_id);
-        if node_id == target.0 {
+        let node = &graph.nodes[node_id];
+        path.push(node.0);
+        if node.0 == target.0 {
             return (path, Some(node_id));
         }
 
@@ -62,33 +71,70 @@ pub fn depth_first_search_it(
     (path, None)
 }
 
-impl Graph {
-    pub fn neighbours(&self, node: NodeId) -> Vec<NodeId> {
-        self.edges
-            .iter()
-            .filter(|(from, _)| *from == node)
-            .map(|(_, to)| *to)
-            .collect()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{depth_first_search_it, depth_first_search_rec, Graph, Node};
 
-    #[test]
-    fn find_rec_fail() {
-        let nodes = vec![1, 2, 3, 4, 5, 6, 7];
-        let edges = vec![(0, 1), (0, 2), (1, 3), (1, 4), (2, 5), (2, 6)];
+    /* Example graph #1:
+     *
+     *            (1)   <--- Root
+     *           /   \
+     *         (2)   (3)
+     *        / |     | \
+     *     (4) (5)   (6) (7)
+     *          |
+     *         (8)
+     */
+    fn graph1() -> Graph {
+        let nodes = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let edges = vec![(0, 1), (0, 2), (1, 3), (1, 4), (2, 5), (2, 6), (4, 7)];
 
-        let root_id = 0;
-        let target = Node(99);
-        let correct_path = vec![0, 1, 3, 4, 2, 5, 6];
-
-        let graph = Graph {
+        Graph {
             nodes: nodes.into_iter().map(Node).collect(),
             edges,
-        };
+        }
+    }
+
+    /* Example graph #2:
+     *
+     *     (1) --- (2)     (3) --- (4)
+     *            / |     /       /
+     *          /   |   /       /
+     *        /     | /       /
+     *     (5)     (6) --- (7)     (8)
+     */
+    fn graph2() -> Graph {
+        let nodes = vec![1, 2, 3, 4, 5, 6, 7, 8];
+        let edges = vec![
+            (0, 1),
+            (1, 0),
+            (1, 4),
+            (4, 1),
+            (1, 5),
+            (5, 1),
+            (2, 3),
+            (3, 2),
+            (2, 5),
+            (5, 2),
+            (3, 6),
+            (6, 3),
+            (5, 6),
+            (6, 5),
+        ];
+
+        Graph {
+            nodes: nodes.into_iter().map(Node).collect(),
+            edges,
+        }
+    }
+
+    #[test]
+    fn dfs_rec_fail() {
+        let graph = graph1();
+
+        let root_id = 0;
+        let target = Node(10);
+        let correct_path = vec![1, 2, 4, 5, 8, 3, 6, 7];
 
         let mut path = Vec::new();
         let res = depth_first_search_rec(&graph, &mut path, root_id, &target);
@@ -97,18 +143,12 @@ mod tests {
     }
 
     #[test]
-    fn find_rec_success() {
-        let nodes = vec![1, 2, 3, 4, 5, 6, 7];
-        let edges = vec![(0, 1), (0, 2), (1, 3), (1, 4), (2, 5), (2, 6)];
+    fn dfs_rec_success() {
+        let graph = graph1();
 
         let root_id = 0;
         let target = Node(6);
-        let correct_path = vec![0, 1, 3, 4, 2, 5];
-
-        let graph = Graph {
-            nodes: nodes.into_iter().map(Node).collect(),
-            edges,
-        };
+        let correct_path = vec![1, 2, 4, 5, 8, 3, 6];
 
         let mut path = Vec::new();
         let res = depth_first_search_rec(&graph, &mut path, root_id, &target);
@@ -117,59 +157,28 @@ mod tests {
     }
 
     #[test]
-    fn find_it_success() {
-        let nodes = vec![0, 1, 2, 3, 4, 5, 6, 7];
-        let edges = vec![
-            (0, 1),
-            (1, 3),
-            (3, 2),
-            (2, 1),
-            (3, 4),
-            (4, 5),
-            (5, 7),
-            (7, 6),
-            (6, 4),
-        ];
-
-        let root_id = 0;
-        let target = Node(6);
-        let correct_path = vec![0, 1, 3, 2, 4, 5, 7, 6];
-
-        let graph = Graph {
-            nodes: nodes.into_iter().map(Node).collect(),
-            edges,
-        };
-        let (path, res) = depth_first_search_it(&graph, root_id, &target);
-        assert_eq!(correct_path, path);
-        assert_eq!(res, Some(6));
-    }
-
-    #[test]
-    fn find_it_success_2() {
-        let nodes = vec![0, 1, 2, 3, 4, 5, 6, 7];
-        let edges = vec![
-            (0, 1),
-            (1, 3),
-            (3, 2),
-            (2, 1),
-            (3, 4),
-            (4, 5),
-            (5, 7),
-            (7, 6),
-            (6, 4),
-        ];
+    fn dfs_it_success() {
+        let graph = graph2();
 
         let root_id = 0;
         let target = Node(4);
+        let correct_path = vec![1, 2, 5, 6, 3, 4];
 
-        let correct_path = vec![0, 1, 3, 2, 4];
-
-        let graph = Graph {
-            nodes: nodes.into_iter().map(Node).collect(),
-            edges,
-        };
         let (path, res) = depth_first_search_it(&graph, root_id, &target);
         assert_eq!(correct_path, path);
-        assert_eq!(res, Some(4));
+        assert_eq!(res, Some(3));
+    }
+
+    #[test]
+    fn dfs_it_fail() {
+        let graph = graph2();
+
+        let root_id = 0;
+        let target = Node(8);
+        let correct_path = vec![1, 2, 5, 6, 3, 4, 7];
+
+        let (path, res) = depth_first_search_it(&graph, root_id, &target);
+        assert_eq!(correct_path, path);
+        assert_eq!(res, None);
     }
 }
