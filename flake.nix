@@ -4,8 +4,12 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    flakebox = {
-      url = "github:rustshop/flakebox";
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    naersk = {
+      url = "github:nix-community/naersk";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -13,62 +17,43 @@
   outputs = {
     nixpkgs,
     flake-utils,
-    flakebox,
+    naersk,
+    fenix,
     ...
-  }: flake-utils.lib.eachDefaultSystem (
+  }:
+    flake-utils.lib.eachDefaultSystem (
       system: let
-        pkgs = import nixpkgs {inherit system;};
-
-        shellPackages = with pkgs; [];
-
-        flakeboxLib = flakebox.lib.${system} {
-	        config = {
-	            just.enable = false;
-				convco.enable = false;
-				github.ci.workflows.flakebox-flakehub-publish.enable = false;
-                git.commit-msg.enable = false;
-                git.commit-template.enable = false;
-		        git.pre-commit.enable = false;
-
-                env.shellPackages = shellPackages;
-	        };
-        };
-        project_name = "telos";
-
-        buildPaths = [
-          "Cargo.toml"
-          "Cargo.lock"
-          "src"
-        ];
-
-        buildInputs = with pkgs; [];
-
-        nativeBuildInputs = with pkgs; [];
-
-        buildSrc = flakeboxLib.filterSubPaths {
-          root = builtins.path {
-            name = project_name;
-            path = ./.;
-          };
-          paths = buildPaths;
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [fenix.overlays.default];
         };
 
-        multiBuild = (flakeboxLib.craneMultiBuild {}) (craneLib': let
-          craneLib = craneLib'.overrideArgs {
-            pname = project_name;
-            src = buildSrc;
-            inherit buildInputs nativeBuildInputs;
-          };
-        in {
-          ${project_name} = craneLib.buildPackage {};
-        });
-      in {
-        packages.default = multiBuild.${project_name};
+        toolchain = with fenix.packages.${system};
+          combine [
+            default.rustc
+            default.cargo
+            default.clippy
+            default.rustfmt
+          ];
 
-        legacyPackages = multiBuild;
+        naersk' = naersk.lib.${system}.override {
+          cargo = toolchain;
+          rustc = toolchain;
+        };
 
-        devShells = flakeboxLib.mkShells {
-          inherit buildInputs nativeBuildInputs;
+        buildInputs = with pkgs; [openssl];
+        shellPkgs = with pkgs; [];
+      in rec {
+        defaultPackage = naersk'.buildPackage {
+          src = ./.;
+          inherit buildInputs;
+        };
+
+        devShell = pkgs.mkShell {
+          inputsFrom = [defaultPackage];
+          packages = shellPkgs;
+          #CARGO_BUILD_TARGET = "x86_64-unknown-linux-gnu";
+          #LD_LIBRARY_PATH = "${pkgs.lib.makeLibraryPath (buildInputs pkgs)}";
         };
       }
     );
