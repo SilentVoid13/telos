@@ -11,7 +11,6 @@ pub struct Graph<V: NodeVal> {
     pub edges: HashMap<NodeId, Vec<Edge>>,
 }
 
-#[derive(Debug)]
 pub struct Edge {
     #[allow(dead_code)]
     src: NodeId,
@@ -21,7 +20,8 @@ pub struct Edge {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct QueueEntry {
-    cost: usize,
+    real_cost: usize,
+    heur_cost: usize,
     node_id: NodeId,
 }
 
@@ -34,7 +34,7 @@ impl PartialOrd for QueueEntry {
 impl Ord for QueueEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // NOTE: we reverse the order to get smaller cost at the top
-        other.cost.cmp(&self.cost)
+        other.heur_cost.cmp(&self.heur_cost)
     }
 }
 
@@ -56,99 +56,74 @@ impl<N: NodeVal> Graph<N> {
     }
 }
 
-pub fn dijkstra<V: NodeVal>(
+pub fn astar<V: NodeVal>(
     graph: &Graph<V>,
     src: NodeId,
-) -> BTreeMap<NodeId, (Option<NodeId>, usize)> {
+    target: V,
+    heuristic: impl Fn(&Graph<V>, NodeId) -> usize,
+) -> Option<(usize, Vec<NodeId>)> {
     let mut prevs = BTreeMap::new();
     let mut queue = BinaryHeap::new();
 
-    // NOTE: the order of the tuple matters
     queue.push(QueueEntry {
-        cost: 0,
+        real_cost: 0,
+        heur_cost: heuristic(graph, src),
         node_id: src,
     });
     prevs.insert(src, (None, 0));
 
+    let mut found = None;
     while let Some(e) = queue.pop() {
+        let nval = graph.nodes[e.node_id];
+        if nval == target {
+            found = Some((e.node_id, e.real_cost));
+            break;
+        }
         for edge in graph.edges(e.node_id) {
             if edge.dst == src {
                 continue;
             }
-            let new_cost = e.cost + edge.cost;
+            let new_rcost = e.real_cost + edge.cost;
 
             // NOTE: the ideal solution would be to update the cost of the existing nodes in the priority queue
             // using decrease_key. However, Rust's BinaryHeap does not support this operation.
             // We accept the duplication of nodes in the priority queue as a tradeoff
-            if prevs.get(&edge.dst).map_or(true, |(_, prev_cost)| new_cost < *prev_cost) {
-                prevs.insert(edge.dst, (Some(e.node_id), new_cost));
+            if prevs.get(&edge.dst).map_or(true, |(_, c)| new_rcost < *c) {
+                let new_hcost = new_rcost + heuristic(graph, edge.dst);
+                prevs.insert(edge.dst, (Some(e.node_id), new_rcost));
                 queue.push(QueueEntry {
-                    cost: new_cost,
+                    real_cost: new_rcost,
+                    heur_cost: new_hcost,
                     node_id: edge.dst,
                 });
             }
         }
     }
-    prevs
+
+    // reconstruct path
+    let (target_id, target_cost) = found?;
+    let mut path = vec![target_id];
+    let mut cur = target_id;
+    while cur != src {
+        let (prev_node, _) = prevs[&cur];
+        cur = prev_node?;
+        path.push(cur);
+    }
+    path.reverse();
+    Some((target_cost, path))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use super::{astar, Graph, NodeVal};
 
-    use super::{dijkstra, Graph};
-
-    #[test]
-    fn graph1() {
-        let mut graph = Graph::default();
-        for i in 0..5 {
-            graph.nodes.push(i);
-        }
-
-        graph.add_edge(0, 2, 12);
-        graph.add_edge(0, 3, 60);
-        graph.add_edge(1, 0, 10);
-        graph.add_edge(2, 1, 20);
-        graph.add_edge(2, 3, 32);
-        graph.add_edge(4, 0, 7);
-
-        let mut dists_a = BTreeMap::new();
-        dists_a.insert(0, (None, 0));
-        dists_a.insert(2, (Some(0), 12));
-        dists_a.insert(3, (Some(2), 44));
-        dists_a.insert(1, (Some(2), 32));
-        assert_eq!(dijkstra(&graph, 0), dists_a);
-
-        let mut dists_b = BTreeMap::new();
-        dists_b.insert(1, (None, 0));
-        dists_b.insert(0, (Some(1), 10));
-        dists_b.insert(2, (Some(0), 22));
-        dists_b.insert(3, (Some(2), 54));
-        assert_eq!(dijkstra(&graph, 1), dists_b);
-
-        let mut dists_c = BTreeMap::new();
-        dists_c.insert(2, (None, 0));
-        dists_c.insert(1, (Some(2), 20));
-        dists_c.insert(3, (Some(2), 32));
-        dists_c.insert(0, (Some(1), 30));
-        assert_eq!(dijkstra(&graph, 2), dists_c);
-
-        let mut dists_d = BTreeMap::new();
-        dists_d.insert(3, (None, 0));
-        assert_eq!(dijkstra(&graph, 3), dists_d);
-
-        let mut dists_e = BTreeMap::new();
-        dists_e.insert(4, (None, 0));
-        dists_e.insert(0, (Some(4), 7));
-        dists_e.insert(2, (Some(0), 19));
-        dists_e.insert(3, (Some(2), 51));
-        dists_e.insert(1, (Some(2), 39));
-        assert_eq!(dijkstra(&graph, 4), dists_e);
+    fn null_heuristic<V: NodeVal>(_: &Graph<V>, _: usize) -> usize {
+        0
     }
 
     // https://imagedelivery.net/CLfkmk9Wzy8_9HRyug4EVA/482027d5-fb4e-4a3c-d710-ec60cbead600/sharpen=1
     #[test]
-    fn graph2() {
+    fn test_dijkstra() {
         let mut graph = Graph::default();
         for i in 0..5 {
             graph.nodes.push(i);
@@ -162,22 +137,32 @@ mod tests {
         graph.add_edge(2, 4, 2);
         graph.add_edge(3, 4, 5);
 
-        let mut expected = BTreeMap::new();
-        expected.insert(0, (None, 0));
-        expected.insert(1, (Some(2), 7));
-        expected.insert(2, (Some(0), 3));
-        expected.insert(3, (Some(1), 9));
-        expected.insert(4, (Some(2), 5));
-        assert_eq!(dijkstra(&graph, 0), expected);
+        assert_eq!(
+            astar(&graph, 0, 1, null_heuristic),
+            Some((7, vec![0, 2, 1]))
+        );
+        assert_eq!(
+            astar(&graph, 0, 2, null_heuristic),
+            Some((3, vec![0, 2]))
+        );
+        assert_eq!(
+            astar(&graph, 0, 3, null_heuristic),
+            Some((9, vec![0, 2, 1, 3]))
+        );
+        assert_eq!(
+            astar(&graph, 0, 4, null_heuristic),
+            Some((5, vec![0, 2, 4]))
+        );
     }
 
     #[test]
-    fn graph3() {
+    fn test_heuristic() {
+        // make a grid
         let mut graph = Graph::default();
-        let rows = 100;
-        let cols = 100;
-        let nid = |r: usize, c: usize| r * cols + c;
+        let rows = 500;
+        let cols = 500;
 
+        let nid = |r, c| r * cols + c;
         for row in 0..rows {
             for col in 0..cols {
                 graph.nodes.push((row, col));
@@ -193,13 +178,21 @@ mod tests {
             }
         }
 
-        let res = dijkstra(&graph, 0);
-        for row in 0..rows {
-            for col in 0..cols {
-                let expected_cost = row.max(col);
-                let id = nid(row, col);
-                assert_eq!(res[&id].1, expected_cost);
-            }
-        }
+        let target = (455usize, 479usize);
+
+        // manhattan distance
+        let h = |g: &Graph<(usize, usize)>, nid: usize| {
+            let (r, c) = g.nodes[nid];
+            let m = (target.0 as i32 - r as i32).abs() + (target.1 as i32 - c as i32).abs();
+            m as usize
+        };
+
+        // Dijkstra would explore most of the nodes
+        // the heuristic should allow exploring far fewer nodes
+        let now = std::time::Instant::now();
+        let res = astar(&graph, 0, target, h).unwrap();
+        assert!(now.elapsed() < std::time::Duration::from_millis(10));
+        assert_eq!(res.0, 479);
+        assert_eq!(res.1.len(), 480);
     }
 }
