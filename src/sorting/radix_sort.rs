@@ -1,3 +1,5 @@
+/// naive implementation of the radix sort algorithm.
+/// It is not in-place and performs a lot of allocations
 pub fn radix_sort_naive(array: &[usize]) -> Vec<usize> {
     let mut digit_idx = 0;
     let mut array = array.to_vec();
@@ -20,25 +22,27 @@ pub fn radix_sort_naive(array: &[usize]) -> Vec<usize> {
 }
 
 pub fn radix_sort_in_place(array: &mut [usize]) {
-
     // optimal radix base
     let radix = array.len().next_power_of_two();
+    // simple way to know when to stop
     let max = *array.iter().max().unwrap_or(&0);
     let mut digit_pow = 1;
+
     while digit_pow < max {
         let get_digit = |x| (x / digit_pow) % radix;
         let mut digit_count = vec![0usize; radix];
-        // count occurences of each digit
+
+        // counting sort subroutine to determine the number of elements in each bucket
         for &num in array.iter() {
             let digit = get_digit(num);
             digit_count[digit] += 1;
         }
-        // create buckets ranges
+        // create buckets ranges for each digit
         for i in 1..radix {
             digit_count[i] += digit_count[i - 1];
         }
-        // place each number in the correct bucket
-        for &num in array.to_owned().iter().rev() {
+        // place each value in the correct bucket
+        for num in array.to_vec().into_iter().rev() {
             let d = get_digit(num);
             digit_count[d] -= 1;
             array[digit_count[d]] = num;
