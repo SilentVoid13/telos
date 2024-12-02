@@ -141,10 +141,7 @@ mod tests {
             astar(&graph, 0, 1, null_heuristic),
             Some((7, vec![0, 2, 1]))
         );
-        assert_eq!(
-            astar(&graph, 0, 2, null_heuristic),
-            Some((3, vec![0, 2]))
-        );
+        assert_eq!(astar(&graph, 0, 2, null_heuristic), Some((3, vec![0, 2])));
         assert_eq!(
             astar(&graph, 0, 3, null_heuristic),
             Some((9, vec![0, 2, 1, 3]))

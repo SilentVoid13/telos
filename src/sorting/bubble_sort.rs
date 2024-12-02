@@ -5,9 +5,9 @@ pub fn bubble_sort(input: &mut [u32]) {
     let mut swapped = true;
     while swapped {
         swapped = false;
-        for i in 0..input.len()-1 {
-            if input[i] > input[i+1] {
-                input.swap(i, i+1);
+        for i in 0..input.len() - 1 {
+            if input[i] > input[i + 1] {
+                input.swap(i, i + 1);
                 swapped = true;
             }
         }

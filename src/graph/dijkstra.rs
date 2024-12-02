@@ -80,7 +80,10 @@ pub fn dijkstra<V: NodeVal>(
             // NOTE: the ideal solution would be to update the cost of the existing nodes in the priority queue
             // using decrease_key. However, Rust's BinaryHeap does not support this operation.
             // We accept the duplication of nodes in the priority queue as a tradeoff
-            if prevs.get(&edge.dst).map_or(true, |(_, prev_cost)| new_cost < *prev_cost) {
+            if prevs
+                .get(&edge.dst)
+                .map_or(true, |(_, prev_cost)| new_cost < *prev_cost)
+            {
                 prevs.insert(edge.dst, (Some(e.node_id), new_cost));
                 queue.push(QueueEntry {
                     cost: new_cost,

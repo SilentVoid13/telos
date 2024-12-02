@@ -19,7 +19,7 @@ pub fn naive(ballot_box: Vec<u32>) -> Option<u32> {
 /// Divide and conquer solution
 /// Uses O(nlogn) time and O(logn) space.
 pub fn divide_and_conquer(ballot_box: &Vec<u32>, left: usize, right: usize) -> Option<u32> {
-    if left == right-1 {
+    if left == right - 1 {
         return Some(ballot_box[left]);
     }
 
@@ -36,7 +36,10 @@ pub fn divide_and_conquer(ballot_box: &Vec<u32>, left: usize, right: usize) -> O
     let total = right - left;
     if left_majority.is_none() {
         let right_majority = right_majority.unwrap();
-        let right_freq = ballot_box[left..right].iter().filter(|&x| *x == right_majority).count();
+        let right_freq = ballot_box[left..right]
+            .iter()
+            .filter(|&x| *x == right_majority)
+            .count();
         if right_freq > total / 2 {
             return Some(right_majority);
         }
@@ -44,7 +47,10 @@ pub fn divide_and_conquer(ballot_box: &Vec<u32>, left: usize, right: usize) -> O
     }
     if right_majority.is_none() {
         let left_majority = left_majority.unwrap();
-        let left_freq = ballot_box[left..right].iter().filter(|&x| *x == left_majority).count();
+        let left_freq = ballot_box[left..right]
+            .iter()
+            .filter(|&x| *x == left_majority)
+            .count();
         if left_freq > total / 2 {
             return Some(left_majority);
         }
@@ -91,7 +97,10 @@ mod tests {
     #[test]
     pub fn test_divide_and_conquer() {
         let ballot_box = vec![4, 1, 3, 4, 2, 4, 4, 3, 4];
-        assert_eq!(divide_and_conquer(&ballot_box, 0, ballot_box.len()), Some(4));
+        assert_eq!(
+            divide_and_conquer(&ballot_box, 0, ballot_box.len()),
+            Some(4)
+        );
     }
 
     #[test]

@@ -52,7 +52,7 @@ pub fn breadth_first_search(
 mod tests {
     use super::{breadth_first_search, Graph, Node};
 
-     /* Example graph #1:
+    /* Example graph #1:
      *
      *            (1)   <--- Root
      *           /   \
