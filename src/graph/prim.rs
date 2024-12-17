@@ -1,6 +1,7 @@
-use std::collections::HashMap;
-
-use crate::data_structure::DisjointSet;
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap, HashSet},
+};
 
 pub trait NodeVal: Ord + Copy + Default {}
 impl<T: Ord + Copy + Default> NodeVal for T {}
@@ -13,7 +14,7 @@ pub struct Graph<V: NodeVal> {
     pub edges: HashMap<NodeId, Vec<Edge>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Edge {
     #[allow(dead_code)]
     src: NodeId,
@@ -36,23 +37,38 @@ impl<N: NodeVal> Graph<N> {
             .entry(src)
             .or_default()
             .push(Edge { src, dst, cost });
+        self.edges.entry(dst).or_default().push(Edge {
+            src: dst,
+            dst: src,
+            cost,
+        });
     }
 }
 
-pub fn kruskal<V: NodeVal>(graph: &Graph<V>) -> Vec<Edge> {
-    let mut disjoint_set = DisjointSet::new(graph.nodes.len());
+pub fn prim<V: NodeVal>(graph: &Graph<V>) -> Vec<Edge> {
+    let mut mst = vec![];
+    let mut q = BinaryHeap::new();
+    let mut seen = HashSet::new();
+    // start with an arbitrary node, push all its edges
+    for &e in graph.edges(0) {
+        q.push(Reverse((e.cost, e)));
+    }
+    seen.insert(0);
 
-    // sort edges
-    let mut all_edges: Vec<Edge> = graph.edges.values().flatten().cloned().collect::<Vec<_>>();
-    all_edges.sort_by_key(|e| e.cost);
+    while let Some(e) = q.pop() {
+        let (_, edge) = e.0;
+        if !seen.insert(edge.dst) {
+            continue;
+        }
+        mst.push(edge);
+        if mst.len() == graph.nodes.len() {
+            break;
+        }
 
-    let mut mst = Vec::new();
-    for edge in all_edges {
-        // if the edge does not form a cycle
-        if disjoint_set.find(edge.src) != disjoint_set.find(edge.dst) {
-            // add it to the forest
-            disjoint_set.union(edge.src, edge.dst);
-            mst.push(edge);
+        for &edge in graph.edges(edge.dst) {
+            if !seen.contains(&edge.dst) {
+                q.push(Reverse((edge.cost, edge)));
+            }
         }
     }
     mst
@@ -60,16 +76,9 @@ pub fn kruskal<V: NodeVal>(graph: &Graph<V>) -> Vec<Edge> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeSet, HashSet};
+    use std::collections::BTreeSet;
 
-    use crate::graph::kruskal::{kruskal, Edge, Graph};
-
-    #[test]
-    fn test_empty_graph() {
-        let graph: Graph<i32> = Graph::default();
-        let mst = kruskal(&graph);
-        assert!(mst.is_empty());
-    }
+    use crate::graph::prim::{prim, Edge, Graph};
 
     #[test]
     fn graph1() {
@@ -83,7 +92,7 @@ mod tests {
         graph.add_edge(3, 4, 4);
         graph.add_edge(0, 4, 10);
         graph.add_edge(1, 3, 5);
-        let mst = kruskal(&graph);
+        let mst = prim(&graph);
 
         assert_eq!(mst.len(), 4);
         assert_eq!(mst.iter().map(|e| e.cost).sum::<usize>(), 10);
@@ -101,7 +110,7 @@ mod tests {
         graph.add_edge(3, 0, 4);
         graph.add_edge(0, 2, 10);
 
-        let mst = kruskal(&graph);
+        let mst = prim(&graph);
         assert_eq!(mst.len(), 3);
         assert_eq!(mst.iter().map(|e| e.cost).sum::<usize>(), 6);
     }
@@ -125,17 +134,17 @@ mod tests {
         graph.add_edge(5, 6, 1);
         graph.add_edge(3, 4, 2);
 
-        let mst = kruskal(&graph);
+        let mst = prim(&graph);
         assert_eq!(mst.len(), 6);
         assert_eq!(mst.iter().map(|e| e.cost).sum::<usize>(), 16);
 
         let res = [
-            (1, 3, 1),
-            (5, 6, 1),
             (0, 1, 2),
+            (1, 3, 1),
             (3, 4, 2),
             (1, 6, 4),
-            (2, 6, 6),
+            (6, 5, 1),
+            (6, 2, 6),
         ]
         .iter()
         .map(|(src, dst, cost)| Edge {
