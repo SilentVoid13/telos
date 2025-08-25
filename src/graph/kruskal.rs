@@ -60,7 +60,7 @@ pub fn kruskal<V: NodeVal>(graph: &Graph<V>) -> Vec<Edge> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{BTreeSet, HashSet};
+    use std::collections::BTreeSet;
 
     use crate::graph::kruskal::{kruskal, Edge, Graph};
 

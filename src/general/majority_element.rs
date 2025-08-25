@@ -81,7 +81,7 @@ pub fn booyer_moore(ballot_box: Vec<u32>) -> Option<u32> {
     if candidate_freq <= total / 2 {
         return None;
     }
-    return Some(candidate);
+    Some(candidate)
 }
 
 #[cfg(test)]

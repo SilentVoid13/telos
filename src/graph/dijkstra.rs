@@ -82,7 +82,7 @@ pub fn dijkstra<V: NodeVal>(
             // We accept the duplication of nodes in the priority queue as a tradeoff
             if prevs
                 .get(&edge.dst)
-                .map_or(true, |(_, prev_cost)| new_cost < *prev_cost)
+                .is_none_or(|(_, prev_cost)| new_cost < *prev_cost)
             {
                 prevs.insert(edge.dst, (Some(e.node_id), new_cost));
                 queue.push(QueueEntry {

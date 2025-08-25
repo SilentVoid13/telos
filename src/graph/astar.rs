@@ -88,7 +88,7 @@ pub fn astar<V: NodeVal>(
             // NOTE: the ideal solution would be to update the cost of the existing nodes in the priority queue
             // using decrease_key. However, Rust's BinaryHeap does not support this operation.
             // We accept the duplication of nodes in the priority queue as a tradeoff
-            if prevs.get(&edge.dst).map_or(true, |(_, c)| new_rcost < *c) {
+            if prevs.get(&edge.dst).is_none_or(|(_, c)| new_rcost < *c) {
                 let new_hcost = new_rcost + heuristic(graph, edge.dst);
                 prevs.insert(edge.dst, (Some(e.node_id), new_rcost));
                 queue.push(QueueEntry {

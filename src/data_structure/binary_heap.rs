@@ -12,7 +12,7 @@ pub struct BinaryHeap<T: HeapVal> {
 }
 
 impl<T: HeapVal> BinaryHeap<T> {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { nodes: Vec::new() }
     }
 
@@ -34,8 +34,9 @@ impl<T: HeapVal> BinaryHeap<T> {
     }
 
     pub fn push(&mut self, val: T) {
+        let new_node_id = self.nodes.len();
         self.nodes.push(val);
-        self.heapify_up(self.nodes.len() - 1);
+        self.heapify_up(new_node_id);
     }
 
     pub fn pop(&mut self) -> Option<T> {
@@ -111,7 +112,7 @@ impl<T: HeapVal> BinaryHeap<T> {
         }
     }
 
-    pub fn iter(&self) -> std::slice::Iter<T> {
+    pub fn iter(&'_ self) -> std::slice::Iter<'_, T> {
         self.nodes.iter()
     }
 }
